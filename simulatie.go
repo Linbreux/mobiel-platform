@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/imdraw"
@@ -13,19 +14,20 @@ import (
 )
 
 var (
-	l1        = 765.0
-	a1        = 0.0 / 180 * math.Pi
-	l2        = 1110.0
-	a2        = a1 + 45.0/180*math.Pi
-	L         = 1000.0
-	scale     = 1 / 20.0
-	rechtssom = true
-	vWiel1    = 25.0
-	vWiel2    = 50.0
-	alpha     = 0.0
-	r         = 0.0
-	omega     = 0.001
-	vm        = 20.0
+	l1         = 765.0
+	a1         = 0.0 / 180 * math.Pi
+	l2         = 1110.0
+	a2         = a1 + 45.0/180*math.Pi
+	L          = 1000.0
+	scale      = 1 / 20.0
+	rechtssom  = true
+	vWiel1     = 25.0
+	vWiel2     = 50.0
+	alpha      = 0.0
+	r          = 0.0
+	omega      = 0.0
+	vm         = 250.0
+	vorigeTijd time.Time
 )
 
 func run() {
@@ -42,9 +44,12 @@ func run() {
 	win.SetMatrix(matrix)
 
 	var theta float64
-
+	var snelheidsvector pixel.Vec
+	rotc := pixel.V(r*scale, pixel.ZV.Y)
+	vorigeTijd = time.Now()
 	for !win.Closed() {
 		win.SetClosed(win.JustPressed(pixelgl.KeyEscape) || win.JustPressed(pixelgl.KeyQ))
+
 		win.Clear(color.NRGBA{44, 44, 84, 255})
 		lengteVoertuig1, lengteVoertuig2 := update()
 
@@ -68,12 +73,28 @@ func run() {
 
 		imd := imdraw.New(nil)
 
+		// bereken het tijdsverschil / FPS
+		tijdNu := time.Now()
+		deltat := tijdNu.Sub(vorigeTijd)
+		vorigeTijd = tijdNu
+
+		theta -= omega * deltat.Seconds()
+
+		rotc.X = r * scale
+
 		// Wielen voertuig berekeningen
 		wielLinksX := (pixel.ZV.X - L/2) * scale
 		wielRechtsX := (pixel.ZV.X + L/2) * scale
 
 		WielLinks := pixel.V(wielLinksX, pixel.ZV.Y)
 		WielRechts := pixel.V(wielRechtsX, pixel.ZV.Y)
+
+		snelheidsvector.Y -= math.Cos(math.Pi-theta) * vm * 5 * deltat.Seconds() * scale
+		snelheidsvector.X -= math.Sin(math.Pi-theta) * vm * 5 * deltat.Seconds() * scale
+
+		imd.SetMatrix(pixel.IM.Rotated(pixel.ZV, theta).Moved(snelheidsvector))
+
+		fmt.Println(snelheidsvector)
 
 		// snelheid wielen berekenen uit omega en lineaire snelheid
 
@@ -82,10 +103,6 @@ func run() {
 
 		//bereken rotatiecentrum achteras wielen
 		r = (L / 2) * (vWiel2 + vWiel1) / (vWiel1 - vWiel2)
-		rotc := pixel.V(r*scale, pixel.ZV.Y)
-
-		theta -= omega * 0.016666 * 10
-		//imd.SetMatrix(pixel.IM.Rotated(rotc, theta))
 
 		// stuurhoek bepalen
 
@@ -104,17 +121,17 @@ func run() {
 		// color = black
 		imd.Color = color.NRGBA{255, 255, 255, 255}
 		// teken linkerwiel
-		imd.Push(WielLinks, pixel.V(WielLinks.X, vWiel1*5*scale))
+		imd.Push(WielLinks, pixel.V(WielLinks.X, vWiel1*scale))
 		imd.Line(5)
 
 		// teken rechterwiel
-		imd.Push(WielRechts, pixel.V(WielRechts.X, vWiel2*5*scale))
+		imd.Push(WielRechts, pixel.V(WielRechts.X, vWiel2*scale))
 		imd.Line(5)
 
 		// teken knikpunt
 		imd.Color = color.NRGBA{51, 217, 178, 255}
 		imd.Push(lengteVoertuig1)
-		imd.Circle(10, 0)
+		imd.Circle(5, 0)
 
 		// teken loodrechte op aandrijvende wielen
 		imd.Push(pixel.ZV, rotc)
@@ -127,9 +144,9 @@ func run() {
 		imd.Color = color.NRGBA{100, 25, 178, 255}
 		// teken van grootste wielsnelheid naar rot center
 		if vWiel1 > vWiel2 {
-			imd.Push(pixel.V(WielLinks.X, vWiel1*5*scale), rotc)
+			imd.Push(pixel.V(WielLinks.X, vWiel1*scale), rotc)
 		} else {
-			imd.Push(pixel.V(WielRechts.X, vWiel2*5*scale), rotc)
+			imd.Push(pixel.V(WielRechts.X, vWiel2*scale), rotc)
 		}
 		imd.Line(1)
 
@@ -142,13 +159,13 @@ func run() {
 		fmt.Println("------------------------")
 		imd.Draw(win)
 		if win.JustPressed(pixelgl.KeyUp) {
-			vm += 1
+			vm += 5
 		} else if win.JustPressed(pixelgl.KeyDown) {
-			vm -= 1
+			vm -= 5
 		} else if win.JustPressed(pixelgl.KeyLeft) {
-			omega -= 0.001
+			omega -= 0.01
 		} else if win.JustPressed(pixelgl.KeyRight) {
-			omega += 0.001
+			omega += 0.01
 		} else if win.JustPressed(pixelgl.KeySpace) {
 			omega = 0
 
