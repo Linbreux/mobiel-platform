@@ -14,13 +14,13 @@ import (
 )
 
 var (
-	l1         = 765.0
-	a1         = 0.0 / 180 * math.Pi
-	l2         = 1110.0
-	a2         = a1 + 45.0/180*math.Pi
-	L          = 1000.0
-	scale      = 1 / 20.0
-	rechtssom  = true
+	l1    = 765.0
+	a1    = 0.0 / 180 * math.Pi
+	l2    = 1110.0
+	a2    = a1 + 45.0/180*math.Pi
+	L     = 1000.0
+	scale = 1 / 20.0
+	//rechtssom  = true
 	vWiel1     = 25.0
 	vWiel2     = 50.0
 	alpha      = 0.0
@@ -72,6 +72,11 @@ func run() {
 		fmt.Println("INPUT W: ", omega)
 
 		imd := imdraw.New(nil)
+
+		//
+		imd.SetMatrix(pixel.IM)
+		imd.Push(pixel.V(0, 0))
+		imd.Circle(7, 0)
 
 		// bereken het tijdsverschil / FPS
 		tijdNu := time.Now()
@@ -153,7 +158,7 @@ func run() {
 		imd.Push(rotc)
 		imd.Circle(7, 0)
 
-		fmt.Println("OUTPUT alpha: ", a2)
+		fmt.Println("OUTPUT alpha: ", theta)
 		fmt.Println("OUTPUT WIELV1: ", vWiel1)
 		fmt.Println("OUTPUT WIELV2: ", vWiel2)
 		fmt.Println("------------------------")
