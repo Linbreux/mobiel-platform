@@ -17,7 +17,7 @@ var (
 	l1    = 765.0
 	a1    = 0.0 / 180 * math.Pi
 	l2    = 1110.0
-	a2    = a1 + 45.0/180*math.Pi
+	a2    = a1 + 0.0/180*math.Pi
 	L     = 1000.0
 	scale = 1 / 20.0
 	//rechtssom  = true
@@ -68,15 +68,7 @@ func run() {
 		// 	}
 		// }
 
-		fmt.Println("INPUT V: ", vm)
-		fmt.Println("INPUT W: ", omega)
-
 		imd := imdraw.New(nil)
-
-		//
-		imd.SetMatrix(pixel.IM)
-		imd.Push(pixel.V(0, 0))
-		imd.Circle(7, 0)
 
 		// bereken het tijdsverschil / FPS
 		tijdNu := time.Now()
@@ -94,17 +86,39 @@ func run() {
 		WielLinks := pixel.V(wielLinksX, pixel.ZV.Y)
 		WielRechts := pixel.V(wielRechtsX, pixel.ZV.Y)
 
-		snelheidsvector.Y -= math.Cos(math.Pi-theta) * vm * 5 * deltat.Seconds() * scale
-		snelheidsvector.X -= math.Sin(math.Pi-theta) * vm * 5 * deltat.Seconds() * scale
+		snelheidsvector.Y -= math.Cos(math.Pi-theta) * vm * deltat.Seconds() * scale
+		snelheidsvector.X -= math.Sin(math.Pi-theta) * vm * deltat.Seconds() * scale
+
+		// position
+		setpoint := pixel.V(-100, 200)
+		vectorverschil := pixel.Vec{}
+
+		vectorverschil.X = -(setpoint.X - snelheidsvector.X)
+		vectorverschil.Y = -(setpoint.Y - snelheidsvector.Y)
+
+		hulphoek := math.Mod(theta, math.Pi)
+		P := math.Sqrt(vectorverschil.X*vectorverschil.X + vectorverschil.Y*vectorverschil.Y)
+		hoek := -hulphoek + math.Asin(vectorverschil.Y/P)
+
+		vm = 5 * P
+		omega = 0.00001*hoek + 5*math.Sin(hoek)
+
+		fmt.Println("INPUT V: ", vm)
+		fmt.Println("INPUT W: ", omega)
+
+		fmt.Println("hoek : ", hoek)
+		fmt.Println("P : ", P)
+
+		imd.SetMatrix(pixel.IM)
+		imd.Push(setpoint)
+		imd.Circle(7, 0)
 
 		imd.SetMatrix(pixel.IM.Rotated(pixel.ZV, theta).Moved(snelheidsvector))
 
-		fmt.Println(snelheidsvector)
-
 		// snelheid wielen berekenen uit omega en lineaire snelheid
 
-		vWiel1 = (omega*L)/2 + float64(vm*5)
-		vWiel2 = -(omega*L)/2 + float64(vm*5)
+		vWiel1 = (omega*L)/2 + float64(vm)
+		vWiel2 = -(omega*L)/2 + float64(vm)
 
 		//bereken rotatiecentrum achteras wielen
 		r = (L / 2) * (vWiel2 + vWiel1) / (vWiel1 - vWiel2)
@@ -158,7 +172,7 @@ func run() {
 		imd.Push(rotc)
 		imd.Circle(7, 0)
 
-		fmt.Println("OUTPUT alpha: ", theta)
+		fmt.Println("OUTPUT theta: ", theta)
 		fmt.Println("OUTPUT WIELV1: ", vWiel1)
 		fmt.Println("OUTPUT WIELV2: ", vWiel2)
 		fmt.Println("------------------------")
