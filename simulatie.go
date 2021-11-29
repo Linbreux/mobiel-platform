@@ -90,23 +90,31 @@ func run() {
 		snelheidsvector.X -= math.Sin(math.Pi-theta) * vm * deltat.Seconds() * scale
 
 		// position
-		setpoint := pixel.V(-100, 200)
+		setpoint := pixel.V(300, 0)
+		ORIENTATIE := -90 * math.Pi / 180
 		vectorverschil := pixel.Vec{}
 
 		vectorverschil.X = -(setpoint.X - snelheidsvector.X)
 		vectorverschil.Y = -(setpoint.Y - snelheidsvector.Y)
 
-		hulphoek := math.Mod(theta, math.Pi)
+		hulphoek := -math.Mod(theta, math.Pi) - math.Pi/2
 		P := math.Sqrt(vectorverschil.X*vectorverschil.X + vectorverschil.Y*vectorverschil.Y)
-		hoek := -hulphoek + math.Asin(vectorverschil.Y/P)
+		hoekz := math.Asin(vectorverschil.Y/P) + ORIENTATIE
+		hoeka := hoekz - hulphoek - ORIENTATIE
 
-		vm = 5 * P
-		omega = 0.00001*hoek + 5*math.Sin(hoek)
+		vm = 2 * P
+		omega = 0.5*hoeka + 0.5*hoekz
+
+		fmt.Println("vm/omega: ", vm/omega)
 
 		fmt.Println("INPUT V: ", vm)
 		fmt.Println("INPUT W: ", omega)
 
-		fmt.Println("hoek : ", hoek)
+		fmt.Println("hoeka : ", hoeka)
+		fmt.Println("hoekz : ", hoekz)
+		fmt.Println("hulphoek : ", hulphoek)
+
+		//fmt.Println("hoek : ", hoek)
 		fmt.Println("P : ", P)
 
 		imd.SetMatrix(pixel.IM)
@@ -122,6 +130,8 @@ func run() {
 
 		//bereken rotatiecentrum achteras wielen
 		r = (L / 2) * (vWiel2 + vWiel1) / (vWiel1 - vWiel2)
+
+		fmt.Println("R:", r)
 
 		// stuurhoek bepalen
 
