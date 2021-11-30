@@ -90,7 +90,7 @@ func run() {
 		snelheidsvector.X -= math.Sin(math.Pi-theta) * vm * deltat.Seconds() * scale
 
 		// positionà
-		setpoint := pixel.V(300, 200)
+		setpoint := pixel.V(300, 300)
 		ORIENTATIE := 0 * math.Pi / 180
 		vectorverschil := pixel.Vec{}
 
