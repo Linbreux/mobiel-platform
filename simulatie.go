@@ -40,7 +40,7 @@ func run() {
 		panic(err)
 	}
 	win.SetSmooth(true)
-	matrix := pixel.IM.ScaledXY(pixel.ZV, pixel.V(1, 1)).Moved(pixel.V(750, 300))
+	matrix := pixel.IM.ScaledXY(pixel.ZV, pixel.V(1, 1)).Moved(pixel.V(750, 100))
 	win.SetMatrix(matrix)
 
 	var theta float64
@@ -89,9 +89,9 @@ func run() {
 		snelheidsvector.Y -= math.Cos(math.Pi-theta) * vm * deltat.Seconds() * scale
 		snelheidsvector.X -= math.Sin(math.Pi-theta) * vm * deltat.Seconds() * scale
 
-		// position
-		setpoint := pixel.V(300, 0)
-		ORIENTATIE := -90 * math.Pi / 180
+		// positionà
+		setpoint := pixel.V(300, 200)
+		ORIENTATIE := 0 * math.Pi / 180
 		vectorverschil := pixel.Vec{}
 
 		vectorverschil.X = -(setpoint.X - snelheidsvector.X)
