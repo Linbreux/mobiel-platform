@@ -19,7 +19,7 @@ jobs:
         go-version: 1.17
         
     - name: Install Requirements
-      run: apt-get install libgl1-mesa-dev xorg-dev
+      run: sudo apt-get install libgl1-mesa-dev xorg-dev -y
     
     - name: Tidy
       run: go mod tidy
