@@ -14,12 +14,13 @@ import (
 )
 
 var (
-	l1    = 765.0
-	a1    = 0.0 / 180 * math.Pi
-	l2    = 1110.0
-	a2    = a1 + 0.0/180*math.Pi
-	L     = 1000.0
-	scale = 1 / 20.0
+	l1          = 765.0
+	a1          = 0.0 / 180 * math.Pi
+	l2          = 1110.0
+	a2          = a1 + 0.0/180*math.Pi
+	L           = 1000.0
+	scale       = 1 / 20.0
+	deltaErrorP = 10
 	//rechtssom  = true
 	vWiel1     = 25.0
 	vWiel2     = 50.0
@@ -29,6 +30,12 @@ var (
 	vm         = 250.0
 	vorigeTijd time.Time
 )
+
+type setpoint struct {
+	x    int
+	y    int
+	hoek int
+}
 
 func run() {
 	win, err := pixelgl.NewWindow(pixelgl.WindowConfig{
@@ -47,6 +54,19 @@ func run() {
 	var snelheidsvector pixel.Vec
 	rotc := pixel.V(r*scale, pixel.ZV.Y)
 	vorigeTijd = time.Now()
+	setpoints := []setpoint{
+		setpoint{
+			x:    0,
+			y:    300,
+			hoek: 90,
+		},
+		setpoint{
+			x:    50,
+			y:    500,
+			hoek: 90,
+		},
+	}
+	start := 0
 	for !win.Closed() {
 		win.SetClosed(win.JustPressed(pixelgl.KeyEscape) || win.JustPressed(pixelgl.KeyQ))
 
@@ -90,20 +110,26 @@ func run() {
 		snelheidsvector.X -= math.Sin(math.Pi-theta) * vm * deltat.Seconds() * scale
 
 		// positionà
-		setpoint := pixel.V(300, 300)
-		ORIENTATIE := 0 * math.Pi / 180
+		setpoint := setpoints[start]
+		ORIENTATIE := float64(setpoint.hoek) * math.Pi / 180
 		vectorverschil := pixel.Vec{}
 
-		vectorverschil.X = -(setpoint.X - snelheidsvector.X)
-		vectorverschil.Y = -(setpoint.Y - snelheidsvector.Y)
+		vectorverschil.X = -(float64(setpoint.x) - snelheidsvector.X)
+		vectorverschil.Y = -(float64(setpoint.y) - snelheidsvector.Y)
 
 		hulphoek := -math.Mod(theta, math.Pi) - math.Pi/2
 		P := math.Sqrt(vectorverschil.X*vectorverschil.X + vectorverschil.Y*vectorverschil.Y)
 		hoekz := math.Asin(vectorverschil.Y/P) + ORIENTATIE
 		hoeka := hoekz - hulphoek - ORIENTATIE
 
-		vm = 2 * P
-		omega = 0.5*hoeka + 0.5*hoekz
+		if P > float64(deltaErrorP) {
+			vm = 4 * P
+			omega = 0.5*hoeka + 0.5*hoekz
+		} else {
+			vm = 0.0
+			omega = 0.0
+			start++
+		}
 
 		fmt.Println("vm/omega: ", vm/omega)
 
@@ -118,7 +144,7 @@ func run() {
 		fmt.Println("P : ", P)
 
 		imd.SetMatrix(pixel.IM)
-		imd.Push(setpoint)
+		imd.Push(pixel.V(float64(setpoint.x), float64(setpoint.y)))
 		imd.Circle(7, 0)
 
 		imd.SetMatrix(pixel.IM.Rotated(pixel.ZV, theta).Moved(snelheidsvector))
