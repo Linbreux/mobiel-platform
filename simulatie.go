@@ -53,21 +53,6 @@ func run() {
 		win.Clear(color.NRGBA{44, 44, 84, 255})
 		lengteVoertuig1, lengteVoertuig2 := update()
 
-		// Laat deel 2 van het voertuig draaien, om de beurt links en rechts.
-		// 0.785 = 60°
-
-		// if rechtssom {
-		// 	omega += 0.0001
-		// 	if a2 >= 0.785 {
-		// 		rechtssom = false
-		// 	}
-		// } else {
-		// 	omega -= 0.0001
-		// 	if a2 <= -0.785 {
-		// 		rechtssom = true
-		// 	}
-		// }
-
 		imd := imdraw.New(nil)
 
 		// bereken het tijdsverschil / FPS
@@ -91,31 +76,15 @@ func run() {
 
 		// positionà
 		setpoint := pixel.V(300, 300)
-		ORIENTATIE := 0 * math.Pi / 180
 		vectorverschil := pixel.Vec{}
 
 		vectorverschil.X = -(setpoint.X - snelheidsvector.X)
 		vectorverschil.Y = -(setpoint.Y - snelheidsvector.Y)
 
-		hulphoek := -math.Mod(theta, math.Pi) - math.Pi/2
-		P := math.Sqrt(vectorverschil.X*vectorverschil.X + vectorverschil.Y*vectorverschil.Y)
-		hoekz := math.Asin(vectorverschil.Y/P) + ORIENTATIE
-		hoeka := hoekz - hulphoek - ORIENTATIE
-
-		vm = 2 * P
-		omega = 0.5*hoeka + 0.5*hoekz
-
 		fmt.Println("vm/omega: ", vm/omega)
 
 		fmt.Println("INPUT V: ", vm)
 		fmt.Println("INPUT W: ", omega)
-
-		fmt.Println("hoeka : ", hoeka)
-		fmt.Println("hoekz : ", hoekz)
-		fmt.Println("hulphoek : ", hulphoek)
-
-		//fmt.Println("hoek : ", hoek)
-		fmt.Println("P : ", P)
 
 		imd.SetMatrix(pixel.IM)
 		imd.Push(setpoint)
