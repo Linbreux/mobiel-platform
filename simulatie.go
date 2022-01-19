@@ -157,6 +157,7 @@ func run() {
 		fmt.Println("afstand tussen setpoint", huidigeSetpoint, " en voertuig", setpoint_voertuig)
 		fmt.Println("hoek setpoint", hoekSetp)
 
+		// indien kort genoeg bij het setpoint, ga naar volgende
 		if math.Abs(setpoint_voertuig.Y) < 5 && math.Abs(setpoint_voertuig.X) < 5 {
 			lijstMetSetpoints[huidigeSetpoint].passed = true
 			huidigeSetpoint++
@@ -173,24 +174,17 @@ func run() {
 
 		imd.SetMatrix(pixel.IM.Rotated(pixel.ZV, theta).Moved(snelheidsvector))
 
-		// snelheid wielen berekenen uit omega en lineaire snelheid
+		schuineZijde := l2 / math.Sin(a2)
+		fmt.Println("schuine zijde:", schuineZijde)
+		//a1 = math.Asin(l1 / schuineZijde)
+		fmt.Println("a1:", a1)
+		r = math.Cos(a1) * schuineZijde
+		fmt.Println("R:", r)
+		omega = vm / r
+		fmt.Println(a2)
 
 		vWiel1 = (omega*L)/2 + float64(vm)
 		vWiel2 = -(omega*L)/2 + float64(vm)
-
-		//bereken rotatiecentrum achteras wielen
-		r = (L / 2) * (vWiel2 + vWiel1) / (vWiel1 - vWiel2)
-
-		fmt.Println("R:", r)
-
-		// stuurhoek bepalen
-
-		if math.Atan(l1/r) > 0 {
-			alpha = math.Atan(l1/r) + math.Asin(l2/math.Sqrt(l1*l1+r*r))
-		} else {
-			alpha = math.Atan(l1/r) - math.Asin(l2/math.Sqrt(l1*l1+r*r))
-		}
-		a2 = alpha
 
 		// Teken body van het voertuig
 		imd.Color = color.NRGBA{64, 64, 122, 255}
@@ -243,9 +237,9 @@ func run() {
 		} else if win.JustPressed(pixelgl.KeyDown) {
 			vm -= 5
 		} else if win.JustPressed(pixelgl.KeyLeft) {
-			omega -= 0.01
+			a2 -= 0.01
 		} else if win.JustPressed(pixelgl.KeyRight) {
-			omega += 0.01
+			a2 += 0.01
 		} else if win.JustPressed(pixelgl.KeySpace) {
 			omega = 0
 
