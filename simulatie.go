@@ -55,7 +55,7 @@ func run() {
 	vorigeTijd = time.Now()
 
 	//setpoints toekennen
-	//huidigeSetpoint := 0
+	huidigeSetpoint := 0
 
 	lijstMetSetpoints := append(lijstMetSetpoints,
 		coordinaat{
@@ -143,6 +143,31 @@ func run() {
 			imd.Circle(4, 1)
 
 		}
+		var hoekSetp float64
+		thetaAlwaysWithin360 := math.Mod(theta, 2*math.Pi)
+		//hoek setpoint bepalen
+		if huidigeSetpoint != 0 {
+			tempX := lijstMetSetpoints[huidigeSetpoint].co.X - lijstMetSetpoints[huidigeSetpoint-1].co.X
+			tempY := lijstMetSetpoints[huidigeSetpoint].co.Y - lijstMetSetpoints[huidigeSetpoint-1].co.Y
+			hoekSetp = -math.Tanh(tempX / tempY)
+		}
+
+		// zet coordinaten om naar setpoint-voertuig ipv globaal-voertuig
+		setpoint_voertuig := snelheidsvector.Sub(lijstMetSetpoints[huidigeSetpoint].co).Rotated(hoekSetp)
+		fmt.Println("afstand tussen setpoint", huidigeSetpoint, " en voertuig", setpoint_voertuig)
+		fmt.Println("hoek setpoint", hoekSetp)
+
+		if math.Abs(setpoint_voertuig.Y) < 5 && math.Abs(setpoint_voertuig.X) < 5 {
+			lijstMetSetpoints[huidigeSetpoint].passed = true
+			huidigeSetpoint++
+		}
+
+		verschilHoekSetpointEnVoertuig := thetaAlwaysWithin360 - hoekSetp
+		fmt.Println("verschilHoekSetpointEnVoertuig", verschilHoekSetpointEnVoertuig)
+
+		// X afstand tussen voertuig en setpoint als stuurhoek
+		extra_stuurhoek := setpoint_voertuig.X / 100
+		fmt.Println("extra stuurhoek", extra_stuurhoek)
 
 		// AUTONOOM RIJDEN NAAR PUNT
 
@@ -208,6 +233,7 @@ func run() {
 		imd.Circle(7, 0)
 
 		fmt.Println("OUTPUT theta: ", theta)
+		fmt.Println("OUTPUT thetaAlwaysWithin360: ", thetaAlwaysWithin360)
 		fmt.Println("OUTPUT WIELV1: ", vWiel1)
 		fmt.Println("OUTPUT WIELV2: ", vWiel2)
 		fmt.Println("------------------------")
