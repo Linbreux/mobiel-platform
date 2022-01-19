@@ -21,14 +21,20 @@ var (
 	L     = 1000.0
 	scale = 1 / 20.0
 	//rechtssom  = true
-	vWiel1     = 25.0
-	vWiel2     = 50.0
-	alpha      = 0.0
-	r          = 0.0
-	omega      = 0.0
-	vm         = 250.0
-	vorigeTijd time.Time
+	vWiel1            = 25.0
+	vWiel2            = 50.0
+	alpha             = 0.0
+	r                 = 0.0
+	omega             = 0.0
+	vm                = 250.0
+	vorigeTijd        time.Time
+	lijstMetSetpoints []coordinaat
 )
+
+type coordinaat struct {
+	co     pixel.Vec
+	passed bool
+}
 
 func run() {
 	win, err := pixelgl.NewWindow(pixelgl.WindowConfig{
@@ -47,6 +53,43 @@ func run() {
 	var snelheidsvector pixel.Vec
 	rotc := pixel.V(r*scale, pixel.ZV.Y)
 	vorigeTijd = time.Now()
+
+	//setpoints toekennen
+	//huidigeSetpoint := 0
+
+	lijstMetSetpoints := append(lijstMetSetpoints,
+		coordinaat{
+			co: pixel.V(
+				0,
+				0,
+			),
+		},
+		coordinaat{
+			co: pixel.V(
+				0,
+				200,
+			),
+		},
+		coordinaat{
+			co: pixel.V(
+				200,
+				400,
+			),
+		},
+		coordinaat{
+			co: pixel.V(
+				400,
+				500,
+			),
+		},
+		coordinaat{
+			co: pixel.V(
+				600,
+				400,
+			),
+		},
+	)
+
 	for !win.Closed() {
 		win.SetClosed(win.JustPressed(pixelgl.KeyEscape) || win.JustPressed(pixelgl.KeyQ))
 
@@ -89,6 +132,19 @@ func run() {
 		imd.SetMatrix(pixel.IM)
 		imd.Push(setpoint)
 		imd.Circle(7, 0)
+
+		// teken setpoints op beeld
+		for _, v := range lijstMetSetpoints {
+			imd.Color = color.NRGBA{255, 0, 0, 255}
+			if v.passed {
+				imd.Color = color.NRGBA{0, 255, 0, 255}
+			}
+			imd.Push(v.co)
+			imd.Circle(4, 1)
+
+		}
+
+		// AUTONOOM RIJDEN NAAR PUNT
 
 		imd.SetMatrix(pixel.IM.Rotated(pixel.ZV, theta).Moved(snelheidsvector))
 
