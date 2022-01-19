@@ -36,6 +36,12 @@ type coordinaat struct {
 	passed bool
 }
 
+func PID(actueleHoek, setpoint float64) (stuurhoek float64) {
+	err := setpoint - actueleHoek
+	stuurhoek = err
+	return stuurhoek
+}
+
 func run() {
 	win, err := pixelgl.NewWindow(pixelgl.WindowConfig{
 		Bounds:      pixel.R(0, 0, 1500, 750),
@@ -174,10 +180,10 @@ func run() {
 
 		imd.SetMatrix(pixel.IM.Rotated(pixel.ZV, theta).Moved(snelheidsvector))
 
+		a2 = PID(thetaAlwaysWithin360, hoekSetp)
+
 		schuineZijde := l2 / math.Sin(a2)
 		fmt.Println("schuine zijde:", schuineZijde)
-		//a1 = math.Asin(l1 / schuineZijde)
-		fmt.Println("a1:", a1)
 		r = math.Cos(a1) * schuineZijde
 		fmt.Println("R:", r)
 		omega = vm / r
