@@ -11,6 +11,7 @@ import (
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/imdraw"
 	"github.com/faiface/pixel/pixelgl"
+	"go.einride.tech/pid"
 )
 
 var (
@@ -29,17 +30,59 @@ var (
 	vm                = 250.0
 	vorigeTijd        time.Time
 	lijstMetSetpoints []coordinaat
+	tempWaarde        float64
+	stuursnelheid     = 0.5
 )
+
+var c = pid.AntiWindupController{
+	Config: pid.AntiWindupControllerConfig{
+		ProportionalGain: 1,
+		IntegralGain:     0.0,
+		DerivativeGain:   0.0,
+		// AntiWindUpGain is the anti-windup tracking gain.
+		AntiWindUpGain: 10,
+		// IntegralDischargeTimeConstant is the time constant to discharge the integral state of the PID controller (s)
+		IntegralDischargeTimeConstant: 1.0,
+		// LowPassTimeConstant is the D part low-pass filter time constant => cut-off frequency 1/LowPassTimeConstant.
+		LowPassTimeConstant: time.Second * 1,
+		// MaxOutput is the max output from the PID.
+		MaxOutput: 1,
+		// MinOutput is the min output from the PID.
+		MinOutput: -1,
+	},
+}
 
 type coordinaat struct {
 	co     pixel.Vec
 	passed bool
 }
 
-func PID(actueleHoek, setpoint float64) (stuurhoek float64) {
-	err := setpoint - actueleHoek
-	stuurhoek = err
-	return stuurhoek
+// om een reel systeem te kunnen simuleren dient de hoek rustig op te lopen
+// dat gebeurt in deze functie.
+func rustigOplopen(waarde float64, deltat time.Duration) float64 {
+	if waarde > tempWaarde {
+		tempWaarde += deltat.Seconds() * stuursnelheid
+	}
+	if waarde < tempWaarde {
+		tempWaarde -= deltat.Seconds() * stuursnelheid
+	}
+	fmt.Println("---temp waarde", tempWaarde)
+	return tempWaarde
+}
+
+// De PID regelaar wordt hier ingesteld.
+func PID(actueleHoek, setpoint float64, werkelijkeHoek float64, deltat time.Duration) (stuurhoek float64) {
+	//err := setpoint + actueleHoek
+	//stuurhoek = err
+	rustigOplopen(actueleHoek, deltat)
+	c.Update(pid.AntiWindupControllerInput{
+		ReferenceSignal:   setpoint,
+		ActualSignal:      -tempWaarde,
+		SamplingInterval:  100 * time.Millisecond,
+		FeedForwardSignal: 0,
+	})
+	fmt.Println(c.State.ControlSignal)
+	return c.State.ControlSignal
 }
 
 func run() {
@@ -73,7 +116,7 @@ func run() {
 		coordinaat{
 			co: pixel.V(
 				0,
-				200,
+				100,
 			),
 		},
 		coordinaat{
@@ -159,7 +202,7 @@ func run() {
 		}
 
 		// zet coordinaten om naar setpoint-voertuig ipv globaal-voertuig
-		setpoint_voertuig := snelheidsvector.Sub(lijstMetSetpoints[huidigeSetpoint].co).Rotated(hoekSetp)
+		setpoint_voertuig := snelheidsvector.Sub(lijstMetSetpoints[huidigeSetpoint].co).Rotated(-hoekSetp)
 		fmt.Println("afstand tussen setpoint", huidigeSetpoint, " en voertuig", setpoint_voertuig)
 		fmt.Println("hoek setpoint", hoekSetp)
 
@@ -180,14 +223,13 @@ func run() {
 
 		imd.SetMatrix(pixel.IM.Rotated(pixel.ZV, theta).Moved(snelheidsvector))
 
-		a2 = PID(thetaAlwaysWithin360, hoekSetp)
+		a2 = PID(verschilHoekSetpointEnVoertuig-extra_stuurhoek, 0, a1+a2, deltat)
 
 		schuineZijde := l2 / math.Sin(a2)
 		fmt.Println("schuine zijde:", schuineZijde)
 		r = math.Cos(a1) * schuineZijde
 		fmt.Println("R:", r)
 		omega = vm / r
-		fmt.Println(a2)
 
 		vWiel1 = (omega*L)/2 + float64(vm)
 		vWiel2 = -(omega*L)/2 + float64(vm)
