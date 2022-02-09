@@ -31,24 +31,24 @@ var (
 	vorigeTijd        time.Time
 	lijstMetSetpoints []coordinaat
 	tempWaarde        float64
-	stuursnelheid     = 0.5
+	stuursnelheid     = 0.2
 )
 
 var c = pid.AntiWindupController{
 	Config: pid.AntiWindupControllerConfig{
-		ProportionalGain: 1,
+		ProportionalGain: 1.5,
 		IntegralGain:     0.0,
 		DerivativeGain:   0.0,
 		// AntiWindUpGain is the anti-windup tracking gain.
-		AntiWindUpGain: 10,
+		AntiWindUpGain: 1,
 		// IntegralDischargeTimeConstant is the time constant to discharge the integral state of the PID controller (s)
 		IntegralDischargeTimeConstant: 1.0,
 		// LowPassTimeConstant is the D part low-pass filter time constant => cut-off frequency 1/LowPassTimeConstant.
 		LowPassTimeConstant: time.Second * 1,
 		// MaxOutput is the max output from the PID.
-		MaxOutput: 1,
+		MaxOutput: 0.5,
 		// MinOutput is the min output from the PID.
-		MinOutput: -1,
+		MinOutput: -0.5,
 	},
 }
 
@@ -95,7 +95,7 @@ func run() {
 		panic(err)
 	}
 	win.SetSmooth(true)
-	matrix := pixel.IM.ScaledXY(pixel.ZV, pixel.V(1, 1)).Moved(pixel.V(750, 100))
+	matrix := pixel.IM.ScaledXY(pixel.ZV, pixel.V(1, 1)).Moved(pixel.V(300, 100))
 	win.SetMatrix(matrix)
 
 	var theta float64
@@ -116,24 +116,54 @@ func run() {
 		coordinaat{
 			co: pixel.V(
 				0,
-				100,
+				72,
 			),
 		},
 		coordinaat{
 			co: pixel.V(
-				200,
-				400,
+				-20,
+				140,
 			),
 		},
 		coordinaat{
 			co: pixel.V(
-				400,
-				500,
+				-40,
+				180,
 			),
 		},
 		coordinaat{
 			co: pixel.V(
-				600,
+				-60,
+				220,
+			),
+		},
+		coordinaat{
+			co: pixel.V(
+				-80,
+				260,
+			),
+		},
+		coordinaat{
+			co: pixel.V(
+				-120,
+				300,
+			),
+		},
+		coordinaat{
+			co: pixel.V(
+				-200,
+				330,
+			),
+		},
+		coordinaat{
+			co: pixel.V(
+				-300,
+				300,
+			),
+		},
+		coordinaat{
+			co: pixel.V(
+				-1200,
 				400,
 			),
 		},
@@ -194,20 +224,23 @@ func run() {
 		}
 		var hoekSetp float64
 		thetaAlwaysWithin360 := math.Mod(theta, 2*math.Pi)
+
 		//hoek setpoint bepalen
 		if huidigeSetpoint != 0 {
 			tempX := lijstMetSetpoints[huidigeSetpoint].co.X - lijstMetSetpoints[huidigeSetpoint-1].co.X
 			tempY := lijstMetSetpoints[huidigeSetpoint].co.Y - lijstMetSetpoints[huidigeSetpoint-1].co.Y
-			hoekSetp = -math.Tanh(tempX / tempY)
+			hoekSetp = -math.Tanh(math.Abs(tempX) / math.Abs(tempY))
+			fmt.Println("---- TEMPX:", tempX)
+			fmt.Println("---- TEMPY:", tempY)
 		}
 
 		// zet coordinaten om naar setpoint-voertuig ipv globaal-voertuig
 		setpoint_voertuig := snelheidsvector.Sub(lijstMetSetpoints[huidigeSetpoint].co).Rotated(-hoekSetp)
 		fmt.Println("afstand tussen setpoint", huidigeSetpoint, " en voertuig", setpoint_voertuig)
-		fmt.Println("hoek setpoint", hoekSetp)
+		fmt.Println("hoek setpoint", hoekSetp*180/math.Pi)
 
 		// indien kort genoeg bij het setpoint, ga naar volgende
-		if math.Abs(setpoint_voertuig.Y) < 5 && math.Abs(setpoint_voertuig.X) < 5 {
+		if math.Abs(setpoint_voertuig.Y) < 10 {
 			lijstMetSetpoints[huidigeSetpoint].passed = true
 			huidigeSetpoint++
 		}
@@ -216,7 +249,7 @@ func run() {
 		fmt.Println("verschilHoekSetpointEnVoertuig", verschilHoekSetpointEnVoertuig)
 
 		// X afstand tussen voertuig en setpoint als stuurhoek
-		extra_stuurhoek := setpoint_voertuig.X / 100
+		extra_stuurhoek := setpoint_voertuig.X / 50
 		fmt.Println("extra stuurhoek", extra_stuurhoek)
 
 		// AUTONOOM RIJDEN NAAR PUNT
