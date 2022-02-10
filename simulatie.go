@@ -8,11 +8,15 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/aler9/goroslib"
+	"github.com/aler9/goroslib/pkg/msgs/geometry_msgs"
+	"github.com/aler9/goroslib/pkg/msgs/std_msgs"
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/imdraw"
 	"github.com/faiface/pixel/pixelgl"
-	"go.einride.tech/pid"
 )
+
+//straal wiel = 24cm
 
 var (
 	l1    = 765.0
@@ -22,70 +26,42 @@ var (
 	L     = 1000.0
 	scale = 1 / 20.0
 	//rechtssom  = true
-	vWiel1            = 25.0
-	vWiel2            = 50.0
-	alpha             = 0.0
-	r                 = 0.0
-	omega             = 0.0
-	vm                = 250.0
-	vorigeTijd        time.Time
-	lijstMetSetpoints []coordinaat
-	tempWaarde        float64
-	stuursnelheid     = 0.5
+	vWiel1              = 25.0
+	vWiel2              = 50.0
+	alpha               = 0.0
+	r                   = 0.0
+	omega               = 0.0
+	vm                  = 0.0 // m/s
+	vorigeTijd          time.Time
+	deltat              time.Duration
+	tempWaarde          float64
+	stuursnelheid       = 0.5
+	setpointSnelheid    = 0.0
+	werkelijkeSnelheid  = 0.0
+	setpointStuurhoek   = 0.0
+	werkelijkeStuurhoek = 0.0
 )
 
-var c = pid.AntiWindupController{
-	Config: pid.AntiWindupControllerConfig{
-		ProportionalGain: 1,
-		IntegralGain:     0.0,
-		DerivativeGain:   0.0,
-		// AntiWindUpGain is the anti-windup tracking gain.
-		AntiWindUpGain: 10,
-		// IntegralDischargeTimeConstant is the time constant to discharge the integral state of the PID controller (s)
-		IntegralDischargeTimeConstant: 1.0,
-		// LowPassTimeConstant is the D part low-pass filter time constant => cut-off frequency 1/LowPassTimeConstant.
-		LowPassTimeConstant: time.Second * 1,
-		// MaxOutput is the max output from the PID.
-		MaxOutput: 1,
-		// MinOutput is the min output from the PID.
-		MinOutput: -1,
-	},
-}
-
-type coordinaat struct {
-	co     pixel.Vec
-	passed bool
-}
-
-// om een reel systeem te kunnen simuleren dient de hoek rustig op te lopen
-// dat gebeurt in deze functie.
-func rustigOplopen(waarde float64, deltat time.Duration) float64 {
-	if waarde > tempWaarde {
-		tempWaarde += deltat.Seconds() * stuursnelheid
+func rustig_oplopen(setpoint float64, werkelijkeSnelheid *float64, speed float64) {
+	if setpoint > *werkelijkeSnelheid {
+		*werkelijkeSnelheid += speed * deltat.Seconds()
 	}
-	if waarde < tempWaarde {
-		tempWaarde -= deltat.Seconds() * stuursnelheid
+	if setpoint < *werkelijkeSnelheid {
+		*werkelijkeSnelheid -= speed * deltat.Seconds()
 	}
-	fmt.Println("---temp waarde", tempWaarde)
-	return tempWaarde
+	fmt.Println("setp: ", setpoint, " werkwaarde: ", *werkelijkeSnelheid)
+
 }
 
-// De PID regelaar wordt hier ingesteld.
-func PID(actueleHoek, setpoint float64, werkelijkeHoek float64, deltat time.Duration) (stuurhoek float64) {
-	//err := setpoint + actueleHoek
-	//stuurhoek = err
-	rustigOplopen(actueleHoek, deltat)
-	c.Update(pid.AntiWindupControllerInput{
-		ReferenceSignal:   setpoint,
-		ActualSignal:      -tempWaarde,
-		SamplingInterval:  100 * time.Millisecond,
-		FeedForwardSignal: 0,
-	})
-	fmt.Println(c.State.ControlSignal)
-	return c.State.ControlSignal
+func onMessage(msg *geometry_msgs.Twist) {
+	setpointSnelheid = msg.Linear.X
+	// 1 angualar.z = 20°
+	setpointStuurhoek = msg.Angular.Z
+	//a2 = float64(-msg.Angular.Z) * 20 / 180 * math.Pi
 }
 
 func run() {
+	//venster aanmaken
 	win, err := pixelgl.NewWindow(pixelgl.WindowConfig{
 		Bounds:      pixel.R(0, 0, 1500, 750),
 		VSync:       true,
@@ -98,46 +74,40 @@ func run() {
 	matrix := pixel.IM.ScaledXY(pixel.ZV, pixel.V(1, 1)).Moved(pixel.V(750, 100))
 	win.SetMatrix(matrix)
 
+	// ros node info voor sub
+	n, err := goroslib.NewNode(goroslib.NodeConf{
+		Name:          "goroslib",
+		MasterAddress: "127.0.0.1:11311",
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer n.Close()
+
+	sub, err := goroslib.NewSubscriber(goroslib.SubscriberConf{
+		Node:     n,
+		Topic:    "/cmd_vel",
+		Callback: onMessage,
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer sub.Close()
+
+	pub, err := goroslib.NewPublisher(goroslib.PublisherConf{
+		Node:  n,
+		Topic: "/wheelspeed",
+		Msg:   &std_msgs.Float64{},
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer pub.Close()
+
 	var theta float64
 	var snelheidsvector pixel.Vec
 	rotc := pixel.V(r*scale, pixel.ZV.Y)
 	vorigeTijd = time.Now()
-
-	//setpoints toekennen
-	huidigeSetpoint := 0
-
-	lijstMetSetpoints := append(lijstMetSetpoints,
-		coordinaat{
-			co: pixel.V(
-				0,
-				0,
-			),
-		},
-		coordinaat{
-			co: pixel.V(
-				0,
-				100,
-			),
-		},
-		coordinaat{
-			co: pixel.V(
-				200,
-				400,
-			),
-		},
-		coordinaat{
-			co: pixel.V(
-				400,
-				500,
-			),
-		},
-		coordinaat{
-			co: pixel.V(
-				600,
-				400,
-			),
-		},
-	)
 
 	for !win.Closed() {
 		win.SetClosed(win.JustPressed(pixelgl.KeyEscape) || win.JustPressed(pixelgl.KeyQ))
@@ -149,7 +119,7 @@ func run() {
 
 		// bereken het tijdsverschil / FPS
 		tijdNu := time.Now()
-		deltat := tijdNu.Sub(vorigeTijd)
+		deltat = tijdNu.Sub(vorigeTijd)
 		vorigeTijd = tijdNu
 
 		theta -= omega * deltat.Seconds()
@@ -163,76 +133,43 @@ func run() {
 		WielLinks := pixel.V(wielLinksX, pixel.ZV.Y)
 		WielRechts := pixel.V(wielRechtsX, pixel.ZV.Y)
 
-		snelheidsvector.Y -= math.Cos(math.Pi-theta) * vm * deltat.Seconds() * scale
-		snelheidsvector.X -= math.Sin(math.Pi-theta) * vm * deltat.Seconds() * scale
+		snelheidsvector.Y -= math.Cos(math.Pi-theta) * vm * 1000 * deltat.Seconds() * scale
+		snelheidsvector.X -= math.Sin(math.Pi-theta) * vm * 1000 * deltat.Seconds() * scale
 
-		// positionà
+		// position
 		setpoint := pixel.V(300, 300)
 		vectorverschil := pixel.Vec{}
 
 		vectorverschil.X = -(setpoint.X - snelheidsvector.X)
 		vectorverschil.Y = -(setpoint.Y - snelheidsvector.Y)
 
-		fmt.Println("vm/omega: ", vm/omega)
-
-		fmt.Println("INPUT V: ", vm)
-		fmt.Println("INPUT W: ", omega)
-
 		imd.SetMatrix(pixel.IM)
 		imd.Push(setpoint)
 		imd.Circle(7, 0)
 
-		// teken setpoints op beeld
-		for _, v := range lijstMetSetpoints {
-			imd.Color = color.NRGBA{255, 0, 0, 255}
-			if v.passed {
-				imd.Color = color.NRGBA{0, 255, 0, 255}
-			}
-			imd.Push(v.co)
-			imd.Circle(4, 1)
-
-		}
-		var hoekSetp float64
-		thetaAlwaysWithin360 := math.Mod(theta, 2*math.Pi)
-		//hoek setpoint bepalen
-		if huidigeSetpoint != 0 {
-			tempX := lijstMetSetpoints[huidigeSetpoint].co.X - lijstMetSetpoints[huidigeSetpoint-1].co.X
-			tempY := lijstMetSetpoints[huidigeSetpoint].co.Y - lijstMetSetpoints[huidigeSetpoint-1].co.Y
-			hoekSetp = -math.Tanh(tempX / tempY)
-		}
-
-		// zet coordinaten om naar setpoint-voertuig ipv globaal-voertuig
-		setpoint_voertuig := snelheidsvector.Sub(lijstMetSetpoints[huidigeSetpoint].co).Rotated(-hoekSetp)
-		fmt.Println("afstand tussen setpoint", huidigeSetpoint, " en voertuig", setpoint_voertuig)
-		fmt.Println("hoek setpoint", hoekSetp)
-
-		// indien kort genoeg bij het setpoint, ga naar volgende
-		if math.Abs(setpoint_voertuig.Y) < 5 && math.Abs(setpoint_voertuig.X) < 5 {
-			lijstMetSetpoints[huidigeSetpoint].passed = true
-			huidigeSetpoint++
-		}
-
-		verschilHoekSetpointEnVoertuig := thetaAlwaysWithin360 - hoekSetp
-		fmt.Println("verschilHoekSetpointEnVoertuig", verschilHoekSetpointEnVoertuig)
-
-		// X afstand tussen voertuig en setpoint als stuurhoek
-		extra_stuurhoek := setpoint_voertuig.X / 100
-		fmt.Println("extra stuurhoek", extra_stuurhoek)
-
-		// AUTONOOM RIJDEN NAAR PUNT
+		//thetaAlwaysWithin360 := math.Mod(theta, 2*math.Pi)
 
 		imd.SetMatrix(pixel.IM.Rotated(pixel.ZV, theta).Moved(snelheidsvector))
 
-		a2 = PID(verschilHoekSetpointEnVoertuig-extra_stuurhoek, 0, a1+a2, deltat)
-
 		schuineZijde := l2 / math.Sin(a2)
-		fmt.Println("schuine zijde:", schuineZijde)
-		r = math.Cos(a1) * schuineZijde
-		fmt.Println("R:", r)
-		omega = vm / r
 
-		vWiel1 = (omega*L)/2 + float64(vm)
-		vWiel2 = -(omega*L)/2 + float64(vm)
+		r = math.Cos(a1) * schuineZijde
+
+		omega = vm * 1000 / r
+
+		vWiel1 = (omega*L)/2 + float64(vm*1000)
+		vWiel2 = -(omega*L)/2 + float64(vm*1000)
+
+		rustig_oplopen(setpointSnelheid, &werkelijkeSnelheid, 1.0)
+		rustig_oplopen(-setpointStuurhoek, &werkelijkeStuurhoek, 1.0)
+
+		vm = werkelijkeSnelheid
+		a2 = werkelijkeStuurhoek
+
+		msg := &std_msgs.Float64{
+			Data: vWiel1,
+		}
+		pub.Write(msg)
 
 		// Teken body van het voertuig
 		imd.Color = color.NRGBA{64, 64, 122, 255}
@@ -274,11 +211,6 @@ func run() {
 		imd.Push(rotc)
 		imd.Circle(7, 0)
 
-		fmt.Println("OUTPUT theta: ", theta)
-		fmt.Println("OUTPUT thetaAlwaysWithin360: ", thetaAlwaysWithin360)
-		fmt.Println("OUTPUT WIELV1: ", vWiel1)
-		fmt.Println("OUTPUT WIELV2: ", vWiel2)
-		fmt.Println("------------------------")
 		imd.Draw(win)
 		if win.JustPressed(pixelgl.KeyUp) {
 			vm += 5
