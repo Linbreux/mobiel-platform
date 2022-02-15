@@ -10,6 +10,7 @@ import (
 
 	"github.com/aler9/goroslib"
 	"github.com/aler9/goroslib/pkg/msgs/geometry_msgs"
+	"github.com/aler9/goroslib/pkg/msgs/nav_msgs"
 	"github.com/aler9/goroslib/pkg/msgs/std_msgs"
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/imdraw"
@@ -76,7 +77,7 @@ func run() {
 
 	// ros node info voor sub
 	n, err := goroslib.NewNode(goroslib.NodeConf{
-		Name:          "goroslib",
+		Name:          "Go_simulatie",
 		MasterAddress: "127.0.0.1:11311",
 	})
 	if err != nil {
@@ -96,13 +97,23 @@ func run() {
 
 	pub, err := goroslib.NewPublisher(goroslib.PublisherConf{
 		Node:  n,
-		Topic: "/wheelspeed",
+		Topic: "/turn_angle",
 		Msg:   &std_msgs.Float64{},
 	})
 	if err != nil {
 		panic(err)
 	}
 	defer pub.Close()
+
+	odom, err := goroslib.NewPublisher(goroslib.PublisherConf{
+		Node:  n,
+		Topic: "/voertuig_odom",
+		Msg:   &nav_msgs.Odometry{},
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer odom.Close()
 
 	var theta float64
 	var snelheidsvector pixel.Vec
@@ -160,16 +171,45 @@ func run() {
 		vWiel1 = (omega*L)/2 + float64(vm*1000)
 		vWiel2 = -(omega*L)/2 + float64(vm*1000)
 
-		rustig_oplopen(setpointSnelheid, &werkelijkeSnelheid, 1.0)
-		rustig_oplopen(-setpointStuurhoek, &werkelijkeStuurhoek, 1.0)
+		rustig_oplopen(setpointSnelheid, &werkelijkeSnelheid, 0.5)
+		rustig_oplopen(-setpointStuurhoek, &werkelijkeStuurhoek, 0.5)
 
 		vm = werkelijkeSnelheid
 		a2 = werkelijkeStuurhoek
 
+		header := std_msgs.Header{
+			Stamp:   n.TimeNow(),
+			FrameId: "odom",
+		}
 		msg := &std_msgs.Float64{
-			Data: vWiel1,
+			Data: -a1 - a2,
 		}
 		pub.Write(msg)
+
+		msg2 := &nav_msgs.Odometry{
+			Header:       header,
+			ChildFrameId: "achter_wielbasis",
+			Pose: geometry_msgs.PoseWithCovariance{
+				Pose: geometry_msgs.Pose{
+					Position: geometry_msgs.Point{
+						X: snelheidsvector.Y / scale / 1000,
+						Y: -snelheidsvector.X / scale / 1000,
+					},
+					Orientation: geometry_msgs.Quaternion{
+						Z: theta,
+					},
+				},
+			},
+			Twist: geometry_msgs.TwistWithCovariance{
+				Twist: geometry_msgs.Twist{
+					Linear: geometry_msgs.Vector3{
+						X: vm,
+					},
+				},
+			},
+		}
+
+		odom.Write(msg2)
 
 		// Teken body van het voertuig
 		imd.Color = color.NRGBA{64, 64, 122, 255}
@@ -212,18 +252,6 @@ func run() {
 		imd.Circle(7, 0)
 
 		imd.Draw(win)
-		if win.JustPressed(pixelgl.KeyUp) {
-			vm += 5
-		} else if win.JustPressed(pixelgl.KeyDown) {
-			vm -= 5
-		} else if win.JustPressed(pixelgl.KeyLeft) {
-			a2 -= 0.01
-		} else if win.JustPressed(pixelgl.KeyRight) {
-			a2 += 0.01
-		} else if win.JustPressed(pixelgl.KeySpace) {
-			omega = 0
-
-		}
 		win.Update()
 	}
 }
